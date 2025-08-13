@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Transaction = require('../models/Transaction');
 const router = express.Router();
+const { checkAdmin } = require('../middleware/auth');
 
 // Валидация данных транзакции
 const validateContribution = [
@@ -62,7 +63,7 @@ router.get('/participant/:id', async (req, res) => {
 });
 
 // POST /api/transactions/contribution - Создать взнос
-router.post('/contribution', validateContribution, async (req, res) => {
+router.post('/contribution', checkAdmin, validateContribution, async (req, res) => {
     try {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
@@ -96,7 +97,7 @@ router.post('/contribution', validateContribution, async (req, res) => {
 });
 
 // POST /api/transactions/expense - Создать расход
-router.post('/expense', validateExpense, async (req, res) => {
+router.post('/expense', checkAdmin, validateExpense, async (req, res) => {
     try {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
@@ -168,10 +169,8 @@ router.get('/:id/distribution', async (req, res) => {
     }
 });
 
-// Добавить новые маршруты
-
 // POST /api/transactions/:id/cancel - Отменить транзакцию
-router.post('/:id/cancel', async (req, res) => {
+router.post('/:id/cancel', checkAdmin, async (req, res) => {
     try {
         const transactionId = parseInt(req.params.id);
         if (isNaN(transactionId)) {
@@ -195,7 +194,7 @@ router.post('/:id/cancel', async (req, res) => {
 });
 
 // POST /api/transactions/:id/reapply - Перепровести транзакцию
-router.post('/:id/reapply', async (req, res) => {
+router.post('/:id/reapply', checkAdmin, async (req, res) => {
     try {
         const transactionId = parseInt(req.params.id);
         if (isNaN(transactionId)) {
@@ -219,7 +218,7 @@ router.post('/:id/reapply', async (req, res) => {
 });
 
 // DELETE /api/transactions/:id - Удалить транзакцию (только индивидуальные взносы)
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', checkAdmin, async (req, res) => {
     try {
         const transactionId = parseInt(req.params.id);
         if (isNaN(transactionId)) {
@@ -249,7 +248,7 @@ const validateTransactionUpdate = [
 ];
 
 // PUT /api/transactions/:id - Обновить отмененную транзакцию
-router.put('/:id', validateTransactionUpdate, async (req, res) => {
+router.put('/:id', checkAdmin, validateTransactionUpdate, async (req, res) => {
     try {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {

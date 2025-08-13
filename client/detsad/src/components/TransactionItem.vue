@@ -24,21 +24,21 @@
       </div>
       <div class="transaction-actions" v-if="showActions">
         <template v-if="transaction.status === 'cancelled'">
-          <button @click="toggleEdit" class="action-btn edit">
+          <button v-if="props.isAdmin" @click="toggleEdit" class="action-btn edit">
             {{ isEditing ? 'Отменить' : 'Изменить' }}
           </button>
-          <button v-if="!isEditing" @click="reapplyTransaction" class="action-btn reapply">
+          <button v-if="!isEditing && props.isAdmin" @click="reapplyTransaction" class="action-btn reapply">
             Провести
           </button>
-          <button v-if="isEditing" @click="saveTransaction" class="action-btn save">
+          <button v-if="isEditing && props.isAdmin" @click="saveTransaction" class="action-btn save">
             Сохранить
           </button>
         </template>
         <template v-else>
-          <button @click="cancelTransaction" class="action-btn cancel" v-if="canBeCanceled">
+          <button v-if="props.isAdmin && canBeCanceled" @click="cancelTransaction" class="action-btn cancel">
             Отменить
           </button>
-          <button @click="deleteTransaction" class="action-btn delete" v-if="canBeDeleted">
+          <button v-if="props.isAdmin && canBeDeleted" @click="deleteTransaction" class="action-btn delete">
             Удалить
           </button>
         </template>
@@ -75,6 +75,10 @@ const props = defineProps({
   participants: {
     type: Array,
     default: () => []
+  },
+  isAdmin: {
+    type: Boolean,
+    required: false
   }
 })
 

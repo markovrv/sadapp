@@ -12,15 +12,20 @@ app.use(cors({
     credentials: true
 }));
 
+const { authenticate, checkAdmin, login } = require('./middleware/auth');
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Статические файлы
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Маршрут для входа
+app.post('/api/login', login);
+
 // API маршруты
-app.use('/api/participants', require('./routes/participants'));
-app.use('/api/transactions', require('./routes/transactions'));
+app.use('/api/participants', authenticate, require('./routes/participants'));
+app.use('/api/transactions', authenticate, require('./routes/transactions'));
 
 // Главная страница
 app.get('/', (req, res) => {

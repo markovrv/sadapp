@@ -2,16 +2,32 @@
   <div class="participants-section">
     <div class="section-header">
       <h2>Участники группы</h2>
-      <button @click="showForm = true" class="add-button">
+      <button v-if="props.isAdmin" @click="showForm = true" class="add-button">
         + Добавить участника
       </button>
     </div>
 
-    <ParticipantForm v-if="showForm" :editingParticipant="editingParticipant" @submit="handleSubmit"
+    <!-- поле поиска -->
+    <div class="search-container">
+      <input
+        v-model="searchQuery"
+        type="text"
+        placeholder="Поиск участника..."
+        class="search-input"
+      />
+    </div>
+
+    <ParticipantForm v-if="showForm && props.isAdmin" :editingParticipant="editingParticipant" @submit="handleSubmit"
       @cancel="showForm = false" />
 
     <div class="participants-list">
-      <div v-for="participant in participants" :key="participant.id" class="participant-card">
+      <div v-for="participant in filteredParticipants" :key="participant.id" class="participant-card" :class="{
+        'excluded': participant.is_excluded,
+        'inactive': participant.is_excluded
+      }">
+          <div class="participant-status" v-if="participant.is_excluded">
+            <span class="excluded-badge">Исключен</span>
+          </div>
         <div class="participant-info">
           <h3>{{ participant.last_name }} {{ participant.first_name }}</h3>
           <p>Ребенок: {{ participant.child_name }}</p>
@@ -20,8 +36,8 @@
           <p>Баланс: {{ participant.account_balance || 0 }} ₽</p>
         </div>
         <div class="participant-actions">
-          <button @click="editParticipant(participant)" class="edit-button">Редактировать</button>
-          <button @click="deleteParticipant(participant.id)" class="delete-button">Удалить</button>
+          <button v-if="props.isAdmin" @click="editParticipant(participant)" class="edit-button">Редактировать</button>
+          <button v-if="props.isAdmin" @click="deleteParticipant(participant.id)" class="delete-button">Удалить</button>
           <button @click="viewTransactions(participant.id)" class="transactions-button">Транзакции</button>
         </div>
       </div>
@@ -37,19 +53,19 @@
         <div v-if="transactionsLoading" class="loading">Загрузка...</div>
         <div v-else-if="transactionsError" class="error">{{ transactionsError }}</div>
 
-        <div v-else class="transactions-list">
-          <TransactionItem v-for="transaction in participantTransactions.data" :key="transaction.id"
+        <div v-else-if="participantTransactions.data.length > 0" class="transactions-list">
+          <TransactionItem :is-admin="props.isAdmin" v-for="transaction in participantTransactions.data" :key="transaction.id"
             :transaction="transaction" :participants="participants"
             @updated="viewTransactions(viewingTransactionsFor)" />
         </div>
+        <div v-else class="loading">Транзакций пока нет...</div>
       </div>
     </div>
-
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import ParticipantForm from './ParticipantForm.vue'
 import useApi from '../composables/useApi'
 import TransactionItem from './TransactionItem.vue'
@@ -66,11 +82,36 @@ const {
 const participants = ref([])
 const showForm = ref(false)
 const editingParticipant = ref(null)
+const searchQuery = ref('')
 
 const viewingTransactionsFor = ref(null)
 const participantTransactions = ref([])
 const transactionsLoading = ref(false)
 const transactionsError = ref(null)
+
+const props = defineProps({
+  isAdmin: {
+    type: Boolean,
+    required: false
+  }
+})
+
+// Добавленный computed для фильтрации участников
+const filteredParticipants = computed(() => {
+  if (!searchQuery.value) {
+    return participants.value
+  }
+  
+  const query = searchQuery.value.toLowerCase()
+  return participants.value.filter(participant => {
+    return (
+      (participant.last_name && participant.last_name.toLowerCase().includes(query)) ||
+      (participant.first_name && participant.first_name.toLowerCase().includes(query)) ||
+      (participant.child_name && participant.child_name.toLowerCase().includes(query)) ||
+      (participant.phone && participant.phone.includes(query))
+    )
+  })
+})
 
 const fetchParticipants = async () => {
   try {
@@ -142,6 +183,25 @@ onMounted(fetchParticipants)
 </script>
 
 <style scoped>
+/* Добавленные стили для поиска */
+.search-container {
+  margin-bottom: 20px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px 15px;
+  border: 1px solid #e0e0e0;
+  border-radius: 5px;
+  font-size: 16px;
+  transition: border-color 0.3s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #42b983;
+}
+
 .participants-section {
   margin-bottom: 40px;
 }
@@ -297,12 +357,112 @@ onMounted(fetchParticipants)
   color: #e74c3c;
 }
 
+
+/* Основные стили карточки */
+.participant-card {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 15px;
+  background: white;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Стили для исключенных участников */
+.participant-card.excluded {
+  background-color: #fff9f9;
+  border-color: #ffdddd;
+  opacity: 0.8;
+}
+
+.participant-card.excluded .participant-info h3,
+.participant-card.excluded .participant-info p {
+  color: #888;
+}
+
+.excluded-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  background-color: #ff6b6b;
+  color: white;
+  border-radius: 4px;
+  font-size: 0.75em;
+  font-weight: bold;
+  text-transform: uppercase;
+  margin-top: 5px;
+}
+
+/* Эффекты при наведении */
+.participant-card:not(.excluded):hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.participant-card.excluded:hover {
+  box-shadow: 0 2px 8px rgba(255, 107, 107, 0.2);
+}
+
+/* Иконка исключения */
+.participant-status {
+   position: relative;
+    top: -8px;
+    height: 0;
+    text-align: right;
+}
+
+/* Анимация */
+@keyframes pulse-excluded {
+  0% {
+    background-color: #fff9f9;
+  }
+
+  50% {
+    background-color: #ffefef;
+  }
+
+  100% {
+    background-color: #fff9f9;
+  }
+}
+
+.participant-card.excluded {
+  animation: pulse-excluded 2s infinite;
+}
+
+/* Для мобильных устройств */
 @media (max-width: 768px) {
-  .section-header, .participant-actions {
+  .participant-card.excluded {
+    border-left: 4px solid #ff6b6b;
+  }
+
+  .excluded-badge {
+    position: static;
+    display: block;
+    margin-top: 10px;
+    text-align: center;
+  }
+
+  .participant-status {
+      height: 16px;
+  }
+
+  .section-header,
+  .participant-actions {
     flex-direction: column;
   }
+
   .participants-list {
     grid-template-columns: auto;
+  }
+
+  .add-button {
+    border-radius: 10px;
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    z-index: 1000;
   }
 }
 </style>

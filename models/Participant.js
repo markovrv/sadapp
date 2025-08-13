@@ -73,15 +73,16 @@ class Participant {
         try {
             const idNum = parseInt(id);
             const [result] = await db.execute(`
-                UPDATE participants 
-                SET first_name = ?, last_name = ?, phone = ?, email = ?, child_name = ?
-                WHERE id = ?
-            `, [
+            UPDATE participants 
+            SET first_name = ?, last_name = ?, phone = ?, email = ?, child_name = ?, is_excluded = ?
+            WHERE id = ?
+        `, [
                 participantData.first_name,
                 participantData.last_name,
                 participantData.phone,
                 participantData.email,
                 participantData.child_name,
+                (participantData.is_excluded || false)?1:0,
                 idNum
             ]);
             return result.affectedRows > 0;

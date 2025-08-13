@@ -74,3 +74,5 @@ CREATE INDEX idx_expense_distributions_participant ON expense_distributions(part
 ALTER TABLE transactions 
 ADD COLUMN status ENUM('cancelled') NULL DEFAULT NULL;
 
+ALTER TABLE participants
+ADD COLUMN is_excluded BOOLEAN DEFAULT FALSE;

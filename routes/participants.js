@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Participant = require('../models/Participant');
 const router = express.Router();
+const { checkAdmin } = require('../middleware/auth');
 
 // Валидация данных участника
 const validateParticipant = [
@@ -9,7 +10,8 @@ const validateParticipant = [
     body('last_name').trim().isLength({ min: 2, max: 100 }).withMessage('Фамилия должна содержать от 2 до 100 символов'),
     // body('phone').optional().isMobilePhone('ru-RU').withMessage('Неверный формат телефона'),
     // body('email').optional().isEmail().withMessage('Неверный формат email'),
-    body('child_name').trim().isLength({ min: 2, max: 100 }).withMessage('Имя ребенка должно содержать от 2 до 100 символов')
+    body('child_name').trim().isLength({ min: 2, max: 100 }).withMessage('Имя ребенка должно содержать от 2 до 100 символов'),
+    body('is_excluded').optional().isBoolean().withMessage('Неверный формат флага исключения')
 ];
 
 // GET /api/participants - Получить всех участников
@@ -59,7 +61,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/participants - Создать нового участника
-router.post('/', validateParticipant, async (req, res) => {
+router.post('/', checkAdmin, validateParticipant, async (req, res) => {
     try {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
@@ -86,7 +88,7 @@ router.post('/', validateParticipant, async (req, res) => {
 });
 
 // PUT /api/participants/:id - Обновить участника
-router.put('/:id', validateParticipant, async (req, res) => {
+router.put('/:id', checkAdmin, validateParticipant, async (req, res) => {
     try {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
@@ -127,7 +129,7 @@ router.put('/:id', validateParticipant, async (req, res) => {
 });
 
 // DELETE /api/participants/:id - Удалить участника
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', checkAdmin, async (req, res) => {
     try {
         const id = parseInt(req.params.id);
         if (isNaN(id)) {

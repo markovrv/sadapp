@@ -134,8 +134,6 @@ class Transaction {
         const connection = await db.getConnection();
         try {
             await connection.beginTransaction();
-
-            // Преобразуем параметры в числа для безопасности
             const amountNum = parseFloat(amount);
             const createdByNum = parseInt(createdBy);
 
@@ -148,11 +146,12 @@ class Transaction {
                 throw new Error('Недостаточно средств на общем счете');
             }
 
-            // Получаем всех участников
+            // Получаем всех НЕисключенных участников
             const [participants] = await connection.execute(`
                 SELECT p.id, pa.id as account_id
                 FROM participants p
                 JOIN personal_accounts pa ON p.id = pa.participant_id
+                WHERE p.is_excluded = FALSE
             `);
 
             if (participants.length === 0) {
@@ -381,7 +380,6 @@ class Transaction {
         const connection = await db.getConnection();
         try {
             await connection.beginTransaction();
-
             const transactionIdNum = parseInt(transactionId);
 
             // 1. Получаем информацию о транзакции
@@ -396,11 +394,12 @@ class Transaction {
 
             const t = transaction[0];
 
-            // 2. Получаем текущий список участников
+            // 2. Получаем текущий список НЕисключенных участников
             const [participants] = await connection.execute(`
             SELECT p.id, pa.id as account_id
             FROM participants p
             JOIN personal_accounts pa ON p.id = pa.participant_id
+            WHERE p.is_excluded = FALSE
         `);
 
             if (participants.length === 0) {

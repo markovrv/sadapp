@@ -2,7 +2,7 @@
   <div class="transactions-section">
     <div class="section-header">
       <h2>Транзакции</h2>
-      <div class="transaction-buttons">
+      <div v-if="props.isAdmin" class="transaction-buttons">
         <button @click="showContributionForm = true" class="contribution-button">
           + Взнос
         </button>
@@ -13,14 +13,14 @@
     </div>
 
     <TransactionForm 
-      v-if="showContributionForm" 
+      v-if="showContributionForm && props.isAdmin" 
       type="contribution"
       @submit="handleSubmit"
       @cancel="showContributionForm = false"
     />
 
     <TransactionForm 
-      v-if="showExpenseForm" 
+      v-if="showExpenseForm && props.isAdmin" 
       type="expense"
       @submit="handleSubmit"
       @cancel="showExpenseForm = false"
@@ -29,6 +29,7 @@
     <div class="transactions-list">
       <TransactionItem 
         v-for="transaction in transactions" 
+        :is-admin="props.isAdmin"
         :key="transaction.id" 
         :transaction="transaction"
         :participants="participants"
@@ -70,6 +71,13 @@ const fetchData = async () => {
     console.error(err)
   }
 }
+
+const props = defineProps({
+  isAdmin: {
+    type: Boolean,
+    required: false
+  }
+})
 
 const getParticipantName = (id) => {
   const participant = participants.value.find(p => p.id === id)

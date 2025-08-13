@@ -1,72 +1,85 @@
 <template>
-  <div class="participant-form">
-    <h3 v-if="editingParticipant">Редактировать участника</h3>
-    <h3 v-else>Добавить нового участника</h3>
-    
-    <form @submit.prevent="handleSubmit">
-      <div class="form-group">
-        <label for="firstName">Имя:</label>
-        <input 
-          id="firstName" 
-          v-model="form.first_name" 
-          type="text" 
-          required
-          minlength="2"
-          maxlength="100"
-        >
-      </div>
+  <div class="participant-transactions-modal">
+    <div class="modal-content">
+      <h3 v-if="editingParticipant" class="modal-header">Редактировать участника</h3>
+      <h3 v-else  class="modal-header">Добавить нового участника</h3>
       
-      <div class="form-group">
-        <label for="lastName">Фамилия:</label>
-        <input 
-          id="lastName" 
-          v-model="form.last_name" 
-          type="text" 
-          required
-          minlength="2"
-          maxlength="100"
-        >
-      </div>
-      
-      <div class="form-group">
-        <label for="phone">Телефон:</label>
-        <input 
-          id="phone" 
-          v-model="form.phone" 
-          type="tel"
-        >
-      </div>
-      
-      <div class="form-group" v-if="false">
-        <label for="email">Email:</label>
-        <input 
-          id="email" 
-          v-model="form.email" 
-          type="email"
-        >
-      </div>
-      
-      <div class="form-group">
-        <label for="childName">Имя ребенка:</label>
-        <input 
-          id="childName" 
-          v-model="form.child_name" 
-          type="text" 
-          required
-          minlength="2"
-          maxlength="100"
-        >
-      </div>
-      
-      <div class="form-actions">
-        <button type="submit" class="submit-button">
-          {{ editingParticipant ? 'Обновить' : 'Добавить' }}
-        </button>
-        <button type="button" @click="handleCancel" class="cancel-button">
-          Отмена
-        </button>
-      </div>
-    </form>
+      <form @submit.prevent="handleSubmit">
+        <div class="form-group">
+          <label for="firstName">Имя:</label>
+          <input 
+            id="firstName" 
+            v-model="form.first_name" 
+            type="text" 
+            required
+            minlength="2"
+            maxlength="100"
+          >
+        </div>
+        
+        <div class="form-group">
+          <label for="lastName">Фамилия:</label>
+          <input 
+            id="lastName" 
+            v-model="form.last_name" 
+            type="text" 
+            required
+            minlength="2"
+            maxlength="100"
+          >
+        </div>
+        
+        <div class="form-group">
+          <label for="phone">Телефон:</label>
+          <input 
+            id="phone" 
+            v-model="form.phone" 
+            type="tel"
+          >
+        </div>
+        
+        <div class="form-group" v-if="false">
+          <label for="email">Email:</label>
+          <input 
+            id="email" 
+            v-model="form.email" 
+            type="email"
+          >
+        </div>
+        
+        <div class="form-group">
+          <label for="childName">Имя ребенка:</label>
+          <input 
+            id="childName" 
+            v-model="form.child_name" 
+            type="text" 
+            required
+            minlength="2"
+            maxlength="100"
+          >
+        </div>
+
+        <div class="form-group checkbox-group" v-if="editingParticipant">
+          <label>
+            <input 
+              type="checkbox" 
+              v-model="form.is_excluded"
+            >
+            Исключить участника
+          </label>
+          <p class="hint">Исключенные участники не участвуют в расчетах</p>
+        </div>
+        
+        <div class="form-actions">
+          <button type="submit" class="submit-button">
+            {{ editingParticipant ? 'Обновить' : 'Добавить' }}
+          </button>
+          <button type="button" @click="handleCancel" class="cancel-button">
+            Отмена
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
 </template>
 
@@ -90,7 +103,8 @@ const form = ref({
   last_name: '',
   phone: '',
   email: '',
-  child_name: ''
+  child_name: '',
+  is_excluded: false
 })
 
 // Перенесем функцию resetForm перед watch
@@ -100,13 +114,17 @@ const resetForm = () => {
     last_name: '',
     phone: '',
     email: '',
-    child_name: ''
+    child_name: '',
+    is_excluded: false
   }
 }
 
 watch(() => props.editingParticipant, (newVal) => {
   if (newVal) {
-    form.value = { ...newVal }
+    form.value = { 
+      ...newVal,
+      is_excluded: (newVal.is_excluded === 1) || false
+    }
   } else {
     resetForm()
   }
@@ -114,10 +132,24 @@ watch(() => props.editingParticipant, (newVal) => {
 
 const handleSubmit = async () => {
   try {
+    // Подготовка данных для отправки
+    const submitData = {
+      first_name: form.value.first_name.trim(),
+      last_name: form.value.last_name.trim(),
+      child_name: form.value.child_name.trim(),
+      phone: form.value.phone?.trim() || null,
+      email: form.value.email?.trim() || null
+    }
+
+    // Добавляем is_excluded только при редактировании
     if (props.editingParticipant) {
-      await updateParticipant(props.editingParticipant.id, form.value)
+      submitData.is_excluded = Boolean(form.value.is_excluded)
+    }
+
+    if (props.editingParticipant) {
+      await updateParticipant(props.editingParticipant.id, submitData)
     } else {
-      await createParticipant(form.value)
+      await createParticipant(submitData)
     }
     emit('submit')
     resetForm()
@@ -164,6 +196,28 @@ const handleCancel = () => {
   font-size: 1em;
 }
 
+.checkbox-group {
+  margin-top: 20px;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.checkbox-group input[type="checkbox"] {
+  width: auto;
+  margin-right: 10px;
+}
+
+.hint {
+  font-size: 0.8em;
+  color: #6c757d;
+  margin-top: 5px;
+  margin-left: 25px;
+}
+
 .form-actions {
   display: flex;
   gap: 10px;
@@ -185,5 +239,38 @@ const handleCancel = () => {
 .cancel-button {
   background: #f0f0f0;
   color: #333;
+}
+
+.participant-transactions-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 800px;
+  max-height: 80vh;
+  padding: 20px;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
 }
 </style>

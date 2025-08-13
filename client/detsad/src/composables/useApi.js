@@ -1,9 +1,23 @@
 import { ref } from 'vue'
 
 export default function useApi() {
-    const apiUrl = 'https://detsad.markovrv.ru/api'
+    // const apiUrl = 'https://detsad.markovrv.ru/api'
+    const apiUrl = 'http://localhost:3000/api'
     const loading = ref(false)
     const error = ref(null)
+    const currentUser = JSON.parse(localStorage.getItem('currentUser'))
+
+    const getAuthHeaders = () => {
+        if (currentUser && currentUser.token) {
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${currentUser.token}`
+            }
+        }
+        return {
+            'Content-Type': 'application/json'
+        }
+    }
 
     const fetchData = async (endpoint, options = {}) => {
         loading.value = true
@@ -11,13 +25,14 @@ export default function useApi() {
 
         try {
             const response = await fetch(`${apiUrl}${endpoint}`, {
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: getAuthHeaders(),
                 ...options
             })
 
             if (!response.ok) {
+                if (response.status === 401) {
+                    throw new Error('Требуется авторизация')
+                }
                 throw new Error(`HTTP error! status: ${response.status}`)
             }
 
@@ -46,18 +61,8 @@ export default function useApi() {
         method: 'DELETE'
     })
     const getParticipantBalance = async (id) => fetchData(`/participants/${id}/balance`)
-    const getParticipantTransactions = async (id) => {
-        try {
-            const response = await fetch(`${apiUrl}/transactions/participant/${id}`)
-            if (!response.ok) {
-                throw new Error(`Ошибка HTTP: ${response.status}`)
-            }
-            return await response.json()
-        } catch (err) {
-            console.error('Ошибка получения транзакций участника:', err)
-            throw err
-        }
-    }
+    const getParticipantTransactions = async (id) => fetchData(`/transactions/participant/${id}`)
+
 
     // Transactions API
     const getTransactions = async (limit = 50, offset = 0) =>
@@ -92,6 +97,7 @@ export default function useApi() {
     })
 
     return {
+        apiUrl,
         loading,
         error,
         getParticipants,
