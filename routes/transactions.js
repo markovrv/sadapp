@@ -3,6 +3,9 @@ const { body, validationResult } = require('express-validator');
 const Transaction = require('../models/Transaction');
 const router = express.Router();
 const { checkAdmin } = require('../middleware/auth');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 // Валидация данных транзакции
 const validateContribution = [
@@ -285,6 +288,157 @@ router.put('/:id', checkAdmin, validateTransactionUpdate, async (req, res) => {
             message: 'Транзакция успешно обновлена'
         });
     } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Настройка Multer для загрузки файлов
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadDir = path.join(__dirname, '../public/uploads');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        cb(null, `${Date.now()}-${file.originalname}`);
+    }
+});
+
+const upload = multer({ storage });
+
+// Добавим новые маршруты
+router.post('/:id/files', 
+    checkAdmin, 
+    upload.single('file'), 
+    async (req, res) => {
+        try {
+            if (!req.file) {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: 'Файл не был загружен' 
+                });
+            }
+
+            const fileId = await Transaction.addFileToTransaction(
+                req.params.id, 
+                req.file
+            );
+
+            res.status(201).json({ 
+                success: true, 
+                fileId,
+                message: 'Файл успешно загружен'
+            });
+        } catch (error) {
+            if (req.file) {
+                fs.unlinkSync(req.file.path);
+            }
+            res.status(500).json({ 
+                success: false, 
+                error: error.message 
+            });
+        }
+    }
+);
+
+router.get('/:id/files', async (req, res) => {
+    try {
+        const files = await Transaction.getTransactionFiles(req.params.id);
+        res.json({ 
+            success: true, 
+            data: files 
+        });
+    } catch (error) {
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+router.delete('/files/:id', 
+    checkAdmin, 
+    async (req, res) => {
+        try {
+            const result = await Transaction.deleteFile(req.params.id);
+            
+            // Удаляем физический файл
+            if (fs.existsSync(result.filePath)) {
+                fs.unlinkSync(result.filePath);
+            }
+            
+            res.json({ 
+                success: true, 
+                message: 'Файл успешно удален' 
+            });
+        } catch (error) {
+            res.status(500).json({ 
+                success: false, 
+                error: error.message 
+            });
+        }
+    }
+);
+
+// GET /api/transactions/files/:id - Скачать файл
+router.get('/files/:id', async (req, res) => {
+    try {
+        const fileId = parseInt(req.params.id);
+        if (isNaN(fileId)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Неверный ID файла'
+            });
+        }
+
+        // Получаем информацию о файле
+        const files = await Transaction.getFile(fileId);
+
+        if (files.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Файл не найден'
+            });
+        }
+
+        const file = files[0];
+        const filePath = file.file_path;
+
+        // Проверяем существование файла
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({
+                success: false,
+                error: 'Файл не найден на сервере: ' + filePath
+            });
+        }
+
+        // Устанавливаем заголовки для скачивания
+        res.setHeader('Content-Type', file.mime_type);
+        res.setHeader('Content-Disposition', `attachment; filename="${file.file_name}"`);
+        res.setHeader('Content-Length', file.size);
+
+        // Отправляем файл
+        const fileStream = fs.createReadStream(filePath);
+        fileStream.pipe(res);
+
+        // Обработка ошибок потока
+        fileStream.on('error', (error) => {
+            console.error('Ошибка при чтении файла:', error);
+            if (!res.headersSent) {
+                res.status(500).json({
+                    success: false,
+                    error: 'Ошибка при чтении файла'
+                });
+            }
+        });
+
+    } catch (error) {
+        console.error('Ошибка при скачивании файла:', error);
         res.status(500).json({
             success: false,
             error: error.message

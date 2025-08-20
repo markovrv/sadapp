@@ -45,6 +45,13 @@
         <button v-if="!canBeDeleted && !isEditing" @click="toggleDistribution" class="action-btn info">
           {{ showDistributionDetails ? 'Скрыть' : 'Детали' }}
         </button>
+        <button 
+          v-if="transaction.files.length > 0 || props.isAdmin" 
+          @click="toggleFiles" 
+          class="action-btn files"
+        >
+          {{ showFiles ? 'Скрыть файлы' : 'Файлы' }} ({{ transaction.files.length }})
+        </button>
       </div>
     </div>
     
@@ -58,13 +65,21 @@
         </div>
       </div>
     </div>
+    <TransactionFiles 
+      v-if="showFiles"
+      :transaction-id="transaction.id"
+      :initial-files="transaction.files || []"
+      :is-admin="isAdmin"
+      @files-updated="$emit('updated')"
+    />
+
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
 import useApi from '../composables/useApi'
-
+import TransactionFiles from './TransactionFiles.vue'
 import petrovich  from 'petrovich';
 
 const props = defineProps({
@@ -103,6 +118,7 @@ const showDistributionDetails = ref(false)
 const distribution = ref([])
 const distributionLoading = ref(false)
 const distributionError = ref(null)
+const showFiles = ref(false)
 
 const amountClass = computed(() => ({
   positive: props.transaction.type === 'contribution',
@@ -148,6 +164,10 @@ const toggleEdit = () => {
     }
     isEditing.value = true
   }
+}
+
+const toggleFiles = () => {
+  showFiles.value = !showFiles.value
 }
 
 const saveTransaction = async () => {
@@ -410,6 +430,15 @@ const loadDistribution = async () => {
 
 .action-btn.save:hover {
   background-color: #218838;
+}
+
+.action-btn.files {
+  background-color: #9b59b6;
+  color: white;
+}
+
+.action-btn.files:hover {
+  background-color: #8e44ad;
 }
 
 @media (max-width: 768px) {

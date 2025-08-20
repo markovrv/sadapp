@@ -72,7 +72,7 @@ const userRoleText = computed(() => {
 
 onMounted(() => {
   // Проверяем авторизацию при загрузке
-  const savedUser = localStorage.getItem('currentUser')
+  const savedUser = sessionStorage.getItem('currentUser')
   if (savedUser) {
     currentUser.value = JSON.parse(savedUser)
   }
@@ -95,7 +95,7 @@ const handleLogin = async (credentials) => {
         role: data.role,
         token: data.token
       }
-      localStorage.setItem('currentUser', JSON.stringify(currentUser.value))
+      sessionStorage.setItem('currentUser', JSON.stringify(currentUser.value))
     } else {
       error.value = 'Ошибка авторизации: ' + (data.error || 'Неверные учетные данные')
     }
@@ -108,7 +108,7 @@ const handleLogin = async (credentials) => {
 
 const handleLogout = () => {
   currentUser.value = null
-  localStorage.removeItem('currentUser')
+  sessionStorage.removeItem('currentUser')
 }
 </script>
 

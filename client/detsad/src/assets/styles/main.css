@@ -33,6 +33,27 @@ input, select, textarea {
   font-size: inherit;
 }
 
+/* Добавим стили для работы с файлами */
+.file-upload-area {
+  border: 2px dashed #ccc;
+  padding: 20px;
+  text-align: center;
+  border-radius: 8px;
+  margin: 10px 0;
+  cursor: pointer;
+}
+
+.file-upload-area:hover {
+  border-color: #42b983;
+}
+
+.file-preview {
+  margin-top: 10px;
+  max-width: 100px;
+  max-height: 100px;
+  border-radius: 4px;
+}
+
 @media (max-width: 768px) {
   body {
     padding: 10px;

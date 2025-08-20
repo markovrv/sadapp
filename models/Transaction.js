@@ -9,68 +9,104 @@ class Transaction {
             const offsetNum = parseInt(offset) || 0;
 
             const [rows] = await db.execute(`
-                SELECT t.*, 
-                       p.first_name, p.last_name, p.child_name,
-                       pa.balance as personal_balance,
-                       ga.balance as group_balance
+                SELECT 
+                    t.*, 
+                    p.first_name, 
+                    p.last_name, 
+                    p.child_name,
+                    pa.balance as personal_balance,
+                    ga.balance as group_balance,
+                    JSON_ARRAYAGG(
+                        JSON_OBJECT(
+                            'id', tf.id,
+                            'file_name', tf.file_name,
+                            'mime_type', tf.mime_type,
+                            'size', tf.size,
+                            'created_at', tf.created_at
+                        )
+                    ) as files
                 FROM transactions t
                 LEFT JOIN participants p ON t.participant_id = p.id
                 LEFT JOIN personal_accounts pa ON t.personal_account_id = pa.id
                 LEFT JOIN group_account ga ON t.group_account_id = ga.id
+                LEFT JOIN transaction_files tf ON t.id = tf.transaction_id
+                GROUP BY t.id
                 ORDER BY t.created_at DESC
                 LIMIT ${limitNum} OFFSET ${offsetNum}
             `);
-            return rows;
+
+            // Преобразуем JSON строку в объект для каждого файла
+            const transactions = rows.map(transaction => {
+                if (transaction.files && transaction.files[0] && transaction.files[0].id) {
+                    // Если файлы уже являются объектами (MySQL 8.0+)
+                    return transaction;
+                } else if (transaction.files) {
+                    // Если файлы в формате JSON строки (MySQL 5.7)
+                    try {
+                        transaction.files = JSON.parse(transaction.files);
+                    } catch (e) {
+                        transaction.files = [];
+                    }
+                } else {
+                    transaction.files = [];
+                }
+                return transaction;
+            });
+            
+            return transactions;
+
         } catch (error) {
             throw new Error(`Ошибка при получении транзакций: ${error.message}`);
         }
     }
 
-    // Transaction.js - обновленный метод getByParticipant
+    // получаем транзакции участника
     static async getByParticipant(participantId, limit = 50, offset = 0) {
         try {
-            const limitNum = parseInt(limit) || 50;
-            const offsetNum = parseInt(offset) || 0;
             const participantIdNum = parseInt(participantId);
-
-            // Получаем все транзакции участника (взносы и распределенные расходы)
+            
+            // Получаем базовую информацию о транзакциях
             const [rows] = await db.execute(`
-            SELECT 
-                t.id,
-                t.type,
-                t.amount,
-                t.description,
-                t.created_at,
-                t.status,
-                p.first_name, 
-                p.last_name, 
-                p.child_name,
-                pa.balance as personal_balance,
-                ga.balance as group_balance,
-                -- Для расходов указываем сумму, снятую с этого участника
-                CASE 
-                    WHEN t.type = 'expense' THEN ed.amount
-                    ELSE NULL
-                END as participant_amount,
-                -- Для расходов указываем общую сумму расхода
-                CASE 
-                    WHEN t.type = 'expense' THEN t.amount
-                    ELSE NULL
-                END as total_expense_amount
-            FROM transactions t
-            LEFT JOIN participants p ON t.participant_id = p.id
-            LEFT JOIN personal_accounts pa ON t.personal_account_id = pa.id
-            LEFT JOIN group_account ga ON t.group_account_id = ga.id
-            LEFT JOIN expense_distributions ed ON t.id = ed.transaction_id AND ed.participant_id = ?
-            WHERE 
-                -- Взносы этого участника
-                (t.type = 'contribution' AND t.participant_id = ? AND (t.status IS NULL OR t.status != 'cancelled'))
-                OR
-                -- Расходы, распределенные на этого участника (не отмененные)
-                (t.type = 'expense' AND ed.participant_id IS NOT NULL AND (t.status IS NULL OR t.status != 'cancelled'))
-            ORDER BY t.created_at DESC
-        `, [participantIdNum, participantIdNum]);
-
+                SELECT 
+                    t.id,
+                    t.type,
+                    t.amount,
+                    t.description,
+                    t.created_at,
+                    t.status,
+                    p.first_name, 
+                    p.last_name, 
+                    p.child_name,
+                    pa.balance as personal_balance,
+                    ga.balance as group_balance,
+                    ed.amount as participant_amount,
+                    CASE 
+                        WHEN t.type = 'expense' THEN t.amount
+                        ELSE NULL
+                    END as total_expense_amount
+                FROM transactions t
+                LEFT JOIN participants p ON t.participant_id = p.id
+                LEFT JOIN personal_accounts pa ON t.personal_account_id = pa.id
+                LEFT JOIN group_account ga ON t.group_account_id = ga.id
+                LEFT JOIN expense_distributions ed ON t.id = ed.transaction_id AND ed.participant_id = ?
+                WHERE 
+                    (t.type = 'contribution' AND t.participant_id = ? AND (t.status IS NULL OR t.status != 'cancelled'))
+                    OR
+                    (t.type = 'expense' AND ed.participant_id = ? AND (t.status IS NULL OR t.status != 'cancelled'))
+                ORDER BY t.created_at DESC
+            `, [participantIdNum, participantIdNum, participantIdNum]);
+            
+            // Получаем файлы для каждой транзакции отдельно
+            for (let transaction of rows) {
+                const [files] = await db.execute(`
+                    SELECT id, file_name, mime_type, size, created_at
+                    FROM transaction_files 
+                    WHERE transaction_id = ?
+                `, [transaction.id]);
+                
+                transaction.files = files;
+            }
+            
             return rows;
         } catch (error) {
             throw new Error(`Ошибка при получении транзакций участника: ${error.message}`);
@@ -519,6 +555,96 @@ class Transaction {
         } catch (error) {
             await connection.rollback();
             throw new Error(`Ошибка при обновлении транзакции: ${error.message}`);
+        } finally {
+            connection.release();
+        }
+    }
+
+    static async addFileToTransaction(transactionId, fileData) {
+        try {
+            const [result] = await db.execute(`
+            INSERT INTO transaction_files 
+            (transaction_id, file_name, file_path, mime_type, size)
+            VALUES (?, ?, ?, ?, ?)
+        `, [
+                transactionId,
+                fileData.originalname,
+                fileData.path,
+                fileData.mimetype,
+                fileData.size
+            ]);
+            return result.insertId;
+        } catch (error) {
+            throw new Error(`Ошибка при добавлении файла: ${error.message}`);
+        }
+    }
+
+    static async getTransactionFiles(transactionId) {
+        try {
+            const [rows] = await db.execute(`
+            SELECT * FROM transaction_files 
+            WHERE transaction_id = ?
+        `, [transactionId]);
+            return rows;
+        } catch (error) {
+            throw new Error(`Ошибка при получении файлов: ${error.message}`);
+        }
+    }
+
+    static async deleteFile(fileId) {
+        const connection = await db.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            // Сначала получаем информацию о файле
+            const [file] = await connection.execute(`
+            SELECT * FROM transaction_files 
+            WHERE id = ?
+        `, [fileId]);
+
+            if (file.length === 0) {
+                throw new Error('Файл не найден');
+            }
+
+            // Удаляем запись из БД
+            await connection.execute(`
+            DELETE FROM transaction_files 
+            WHERE id = ?
+        `, [fileId]);
+
+            await connection.commit();
+
+            // Возвращаем информацию для удаления физического файла
+            return {
+                success: true,
+                filePath: file[0].file_path
+            };
+        } catch (error) {
+            await connection.rollback();
+            throw new Error(`Ошибка при удалении файла: ${error.message}`);
+        } finally {
+            connection.release();
+        }
+    }
+
+    static async getFile(fileId) {
+        const connection = await db.getConnection();
+        try {
+
+            // получаем информацию о файле
+            const [files] = await connection.execute(`
+                SELECT * FROM transaction_files WHERE id = ?
+            `, [fileId]);
+
+            if (files.length === 0) {
+                throw new Error('Файл не найден в БД');
+            }
+
+            // Возвращаем информацию для получения физического файла
+            return files;
+        } catch (error) {
+            await connection.rollback();
+            throw new Error(`Ошибка при получении файла из БД: ${error.message}`);
         } finally {
             connection.release();
         }

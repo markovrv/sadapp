@@ -44,7 +44,7 @@ CREATE TABLE transactions (
     FOREIGN KEY (participant_id) REFERENCES participants(id) ON DELETE SET NULL,
     FOREIGN KEY (group_account_id) REFERENCES group_account(id),
     FOREIGN KEY (personal_account_id) REFERENCES personal_accounts(id) ON DELETE SET NULL,
-    FOREIGN KEY (created_by) REFERENCES participants(id) ON DELETE SET NULL
+    -- FOREIGN KEY (created_by) REFERENCES participants(id) ON DELETE SET NULL
 );
 
 -- Таблица распределения расходов
@@ -76,3 +76,20 @@ ADD COLUMN status ENUM('cancelled') NULL DEFAULT NULL;
 
 ALTER TABLE participants
 ADD COLUMN is_excluded BOOLEAN DEFAULT FALSE;
+
+ALTER TABLE transactions 
+MODIFY COLUMN created_by INT NULL;
+
+ALTER TABLE transactions
+DROP FOREIGN KEY transactions_ibfk_4;
+
+CREATE TABLE transaction_files (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    transaction_id INT NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_path VARCHAR(512) NOT NULL,
+    mime_type VARCHAR(100) NOT NULL,
+    size INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE
+);

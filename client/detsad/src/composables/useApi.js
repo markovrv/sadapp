@@ -2,10 +2,10 @@ import { ref } from 'vue'
 
 export default function useApi() {
     // const apiUrl = 'https://detsad.markovrv.ru/api'
-    const apiUrl = 'http://localhost:3000/api'
+    const apiUrl = window.apiUrl || 'http://localhost:3000/api'
     const loading = ref(false)
     const error = ref(null)
-    const currentUser = JSON.parse(localStorage.getItem('currentUser'))
+    const currentUser = JSON.parse(sessionStorage.getItem('currentUser'))
 
     const getAuthHeaders = () => {
         if (currentUser && currentUser.token) {
@@ -96,6 +96,38 @@ export default function useApi() {
         body: JSON.stringify(data)
     })
 
+    // Files API
+    const getTransactionFiles = async (transactionId) => fetchData(`/transactions/${transactionId}/files`)
+    const uploadTransactionFile = async (transactionId, formData) => {
+        loading.value = true
+        error.value = null
+
+        try {
+            const response = await fetch(`${apiUrl}/transactions/${transactionId}/files`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${currentUser?.token}`
+                },
+                body: formData
+            })
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+
+            return await response.json()
+        } catch (err) {
+            error.value = err.message
+            console.error('API Error:', err)
+            throw err
+        } finally {
+            loading.value = false
+        }
+    }
+    const deleteTransactionFile = async (fileId) => fetchData(`/transactions/files/${fileId}`, {
+        method: 'DELETE'
+    })
+
     return {
         apiUrl,
         loading,
@@ -115,6 +147,9 @@ export default function useApi() {
         reapplyTransaction,
         deleteTransaction,
         getTransactionDistribution,
-        updateTransaction
+        updateTransaction,
+        getTransactionFiles,
+        uploadTransactionFile,
+        deleteTransactionFile
     }
 }

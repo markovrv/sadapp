@@ -26,7 +26,7 @@
         <button type="submit" class="btn btn-success">Войти</button>
       </form>
       <div class="auth-info">
-        <p><strong>Для администратора:</strong> Логин и пароль из настроек</p>
+        <p><strong>Для администратора:</strong> Логин и пароль</p>
         <p><strong>Для родителей:</strong> Номер телефона как логин, имя ребенка как пароль</p>
       </div>
     </div>
